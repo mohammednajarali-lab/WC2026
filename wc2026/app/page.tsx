@@ -1,6 +1,9 @@
 "use client";
+import { useMemo, useState } from "react";
 import { useTournament } from "@/lib/useTournament";
 import { MatchCard, Ticker } from "@/components/ui";
+import { LiveStamp } from "@/components/LiveStamp";
+import { MatchFilters, emptyFilter, matchPasses, filterActive, type MatchFilterState } from "@/components/MatchFilters";
 import type { Match } from "@/lib/types";
 
 function isToday(iso: string) {
@@ -9,30 +12,36 @@ function isToday(iso: string) {
 }
 
 export default function Home() {
-  const { data, loading } = useTournament();
-  const matches = data?.matches ?? [];
+  const { data } = useTournament();
+  const [tf, setTf] = useState<MatchFilterState>(emptyFilter);
+  const allMatches = data?.matches ?? [];
+  const matches = useMemo(() => allMatches.filter(m => matchPasses(m, tf)), [allMatches, tf]);
 
+  const allLive = allMatches.filter(m => m.status === "LIVE");
   const live = matches.filter(m => m.status === "LIVE");
   const today = matches.filter(m => isToday(m.kickoff) && m.status !== "LIVE");
+  // When a filter is active, don't cap the lists — show every matching fixture.
+  const cap = filterActive(tf) ? Infinity : 9;
   const recent = matches
     .filter(m => m.status === "FINISHED")
     .sort((a, b) => +new Date(b.kickoff) - +new Date(a.kickoff))
-    .slice(0, 9);
+    .slice(0, cap);
   const upcoming = matches
     .filter(m => m.status === "SCHEDULED")
     .sort((a, b) => +new Date(a.kickoff) - +new Date(b.kickoff))
-    .slice(0, 9);
+    .slice(0, cap);
 
   return (
     <>
       <div className="statusbar">
-        {live.length > 0
-          ? <><span className="dot live" /> <span>{live.length} match{live.length > 1 ? "es" : ""} live now</span></>
+        {allLive.length > 0
+          ? <><span className="dot live" /> <span>{allLive.length} match{allLive.length > 1 ? "es" : ""} live now</span></>
           : <span>No matches live right now</span>}
         <span>·</span>
-        <span>{matches.length} fixtures</span>
-        {data?.source === "seed" && <span className="pill seed">Sample data — add API key for live</span>}
-        {loading && <span>· loading…</span>}
+        <span>{allMatches.length} fixtures</span>
+        {data?.source === "seed" && <span className="pill seed">Sample data — source unavailable</span>}
+        <span className="spacer" />
+        <LiveStamp updatedAt={data?.updatedAt} live={data?.source === "api"} />
       </div>
 
       <h1 className="page">The 48 are here.</h1>
@@ -41,7 +50,9 @@ export default function Home() {
         across 16 cities in the USA, Canada and Mexico.
       </p>
 
-      {live.length > 0 && <Ticker matches={live} />}
+      <MatchFilters matches={allMatches} value={tf} onChange={setTf} />
+
+      {allLive.length > 0 && <Ticker matches={allLive} />}
 
       <Section title="Live & today">
         {[...live, ...today].length
@@ -58,9 +69,9 @@ export default function Home() {
       </Section>
 
       <p className="foot">
-        Data refreshes automatically every 30 seconds. {data?.source === "api"
-          ? "Live source connected."
-          : "Showing sample data — connect an API key to go live."}
+        {data?.source === "api"
+          ? "Live source connected — scores and the match clock refresh automatically every few seconds while games are in play."
+          : "Showing sample data — the live source is currently unavailable."}
       </p>
     </>
   );

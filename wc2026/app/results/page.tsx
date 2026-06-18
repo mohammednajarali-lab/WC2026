@@ -2,6 +2,7 @@
 import { useMemo, useState } from "react";
 import { useTournament } from "@/lib/useTournament";
 import { MatchCard } from "@/components/ui";
+import { MatchFilters, emptyFilter, matchPasses, type MatchFilterState } from "@/components/MatchFilters";
 import { etDateKey, etSortKey } from "@/lib/venues";
 import type { Match } from "@/lib/types";
 
@@ -10,6 +11,7 @@ type Filter = "ALL" | "GROUP" | "KO" | "LIVE";
 export default function ResultsPage() {
   const { data } = useTournament();
   const [filter, setFilter] = useState<Filter>("ALL");
+  const [tf, setTf] = useState<MatchFilterState>(emptyFilter);
   const matches = data?.matches ?? [];
 
   const filtered = useMemo(() => {
@@ -17,8 +19,9 @@ export default function ResultsPage() {
     if (filter === "GROUP") ms = ms.filter(m => m.stage === "GROUP");
     if (filter === "KO") ms = ms.filter(m => m.stage !== "GROUP");
     if (filter === "LIVE") ms = ms.filter(m => m.status === "LIVE" || m.status === "FINISHED");
+    ms = ms.filter(m => matchPasses(m, tf));
     return ms;
-  }, [matches, filter]);
+  }, [matches, filter, tf]);
 
   const days = useMemo(() => groupByDay(filtered), [filtered]);
 
@@ -45,6 +48,8 @@ export default function ResultsPage() {
             >{label}</button>
           ))}
       </div>
+
+      <MatchFilters matches={matches} value={tf} onChange={setTf} />
 
       {days.length === 0 && <p className="empty">No matches to show.</p>}
 

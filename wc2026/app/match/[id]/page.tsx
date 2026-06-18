@@ -3,30 +3,34 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useTournament } from "@/lib/useTournament";
-import { Flag, stageName, statusLabel } from "@/components/ui";
+import { Flag, stageName, StatusPill } from "@/components/ui";
 import { formatET, whereLabel } from "@/lib/venues";
-import type { Match, MatchEvent } from "@/lib/types";
+import MatchStats from "@/components/MatchStats";
+import type { Match, MatchDetailData, MatchEvent } from "@/lib/types";
 
 export default function MatchPage() {
   const { id } = useParams<{ id: string }>();
   const { data } = useTournament();
-  const [events, setEvents] = useState<MatchEvent[] | null>(null);
+  const [detail, setDetail] = useState<MatchDetailData | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const match = data?.matches.find(m => m.id === id) ?? null;
 
-  // Use inline events (seed) if present; otherwise fetch the live box score.
+  // Fetch the live FotMob box score for this fixture (skip for unplayed games
+  // and for seed data, which carries no provider page).
   useEffect(() => {
     if (!match) return;
-    if (match.events && match.events.length) { setEvents(match.events); return; }
-    if (data?.source !== "api" || match.status === "SCHEDULED") { setEvents([]); return; }
+    if (data?.source !== "api" || match.status === "SCHEDULED") { setDetail(null); return; }
     let alive = true;
-    const home = match.home?.id ? `?home=${encodeURIComponent(match.home.id)}` : "";
-    fetch(`/api/match/${encodeURIComponent(match.id)}${home}`, { cache: "no-store" })
+    setLoading(true);
+    const qs = match.pageUrl ? `?url=${encodeURIComponent(match.pageUrl)}` : "";
+    fetch(`/api/match/${encodeURIComponent(match.id)}${qs}`, { cache: "no-store" })
       .then(r => r.json())
-      .then(j => { if (alive) setEvents(j.events ?? []); })
-      .catch(() => { if (alive) setEvents([]); });
+      .then(j => { if (alive) setDetail(j); })
+      .catch(() => { if (alive) setDetail(null); })
+      .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [match, data?.source]);
+  }, [match?.id, match?.status, data?.source]);
 
   if (!data) return <p className="empty">Loading…</p>;
   if (!match) return (
@@ -36,9 +40,13 @@ export default function MatchPage() {
     </>
   );
 
-  const s = statusLabel(match);
-  const where = whereLabel(match);
-  const goals = (events ?? []).filter(e => e.type === "GOAL");
+  const where = whereLabel({
+    stadium: detail?.info.stadium ?? match.stadium,
+    city: detail?.info.city ?? match.city,
+    venue: match.venue,
+  });
+  const events = detail?.events ?? [];
+  const scheduled = match.status === "SCHEDULED";
 
   return (
     <>
@@ -50,13 +58,13 @@ export default function MatchPage() {
             {match.matchNumber ? <b className="mno">Match {match.matchNumber}</b> : null}
             {match.group ? `Group ${match.group}` : stageName(match.stage)}
           </span>
-          <span className={`pill ${s.cls}`}>{s.text}</span>
+          <StatusPill m={match} />
         </div>
 
         <div className="scoreline">
           <TeamBlock m={match} side="home" />
           <div className="bigscore num">
-            {match.status === "SCHEDULED"
+            {scheduled
               ? <span className="vs">vs</span>
               : <>{match.homeScore ?? 0}<span className="dash">–</span>{match.awayScore ?? 0}</>}
             {match.homePens != null && match.awayPens != null && (
@@ -67,51 +75,77 @@ export default function MatchPage() {
         </div>
 
         <div className="mhead-meta">
-          <span>🗓 {formatET(match.kickoff)}</span>
-          {where && <span>📍 {where}</span>}
+          <span>{formatET(detail?.info.kickoff ?? match.kickoff)}</span>
+          {where && <span>{where}</span>}
+          {detail?.info.referee && <span>Referee: {detail.info.referee}</span>}
+          {detail?.info.attendance ? <span>Att: {detail.info.attendance.toLocaleString()}</span> : null}
         </div>
+
+        {detail?.motm && (
+          <div className="motm">
+            <span className="motm-tag">Player of the match</span>
+            <span className="motm-name">{detail.motm.name}</span>
+            {detail.motm.teamName && <span className="motm-team">{detail.motm.teamName}</span>}
+            {detail.motm.rating && <span className="motm-rating num">{detail.motm.rating}</span>}
+          </div>
+        )}
       </div>
 
-      <h2 className="sectiontitle">Box score</h2>
-      {events === null ? (
-        <p className="empty">Loading box score…</p>
+      <h2 className="sectiontitle">Timeline</h2>
+      {scheduled ? (
+        <p className="empty">The match timeline appears here once the game kicks off.</p>
+      ) : loading && !detail ? (
+        <p className="empty">Loading match facts…</p>
       ) : events.length === 0 ? (
-        <p className="empty">
-          {match.status === "SCHEDULED"
-            ? "Goal timeline appears here once the match kicks off."
-            : "No event detail available for this match yet."}
-        </p>
+        <p className="empty">No event detail available for this match yet.</p>
       ) : (
-        <>
-          {goals.length > 0 && (
-            <div className="goalstrip">
-              {goals.map((e, i) => (
-                <span key={i} className={`gchip ${e.side}`}>
-                  ⚽ {e.player ?? (e.side === "home" ? match.home?.code : match.away?.code)} {min(e)}
-                </span>
-              ))}
-            </div>
-          )}
-          <ul className="timeline">
-            {events.map((e, i) => (
-              <li key={i} className={`tl ${e.side}`}>
-                <span className="tl-min num">{min(e)}</span>
-                <span className="tl-ico">{icon(e)}</span>
-                <span className="tl-body">
-                  <b>{e.player ?? (e.side === "home" ? match.home?.name : match.away?.name)}</b>
-                  {e.assist && e.type === "GOAL" && <span className="tl-sub"> · assist {e.assist}</span>}
-                  {e.detail && e.type !== "GOAL" && <span className="tl-sub"> · {e.detail}</span>}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </>
+        <Timeline events={events} match={match} />
       )}
 
-      {data.source === "seed" && match.status === "FINISHED" && (
-        <p className="foot">Sample timeline (scorers shown once a live API key is connected).</p>
+      {detail && detail.statGroups.length > 0 && (
+        <>
+          <h2 className="sectiontitle">Key match facts</h2>
+          <div className="msteamhead">
+            <span><Flag team={match.home} /> {match.home?.code}</span>
+            <span>{match.away?.code} <Flag team={match.away} /></span>
+          </div>
+          <MatchStats groups={detail.statGroups} />
+        </>
       )}
     </>
+  );
+}
+
+function Timeline({ events, match }: { events: MatchEvent[]; match: Match }) {
+  return (
+    <ul className="timeline">
+      {events.map((e, i) => {
+        if (e.type === "PERIOD" || e.type === "ADDED") {
+          return (
+            <li key={i} className="tl marker">
+              <span className="tl-marker-line" />
+              <span className="tl-marker-text">{e.text}{e.minute ? ` · ${min(e)}` : ""}</span>
+            </li>
+          );
+        }
+        return (
+          <li key={i} className={`tl ${e.side}`}>
+            <span className="tl-min num">{min(e)}</span>
+            <span className="tl-ico" aria-hidden>{icon(e)}</span>
+            <span className="tl-body">
+              <b>{e.player ?? (e.side === "home" ? match.home?.name : match.away?.name)}</b>
+              {e.type === "GOAL" && e.score && (
+                <span className="tl-score num"> {e.score[0]}–{e.score[1]}</span>
+              )}
+              {e.type === "GOAL" && e.assist && <span className="tl-sub"> assist: {e.assist}</span>}
+              {e.type === "GOAL" && e.detail && <span className="tl-sub"> · {e.detail}</span>}
+              {e.type === "SUBST" && e.playerOut && <span className="tl-sub"> ↓ {e.playerOut}</span>}
+              {e.type === "CARD" && e.detail && <span className="tl-sub"> · {e.detail}</span>}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -130,8 +164,8 @@ function min(e: MatchEvent): string {
   return e.extra ? `${e.minute}+${e.extra}'` : `${e.minute}'`;
 }
 function icon(e: MatchEvent): string {
-  if (e.type === "GOAL") return e.detail?.toLowerCase().includes("own") ? "⚽(OG)" : "⚽";
-  if (e.type === "CARD") return e.detail?.toLowerCase().includes("red") ? "🟥" : "🟨";
+  if (e.type === "GOAL") return "⚽";
+  if (e.type === "CARD") return e.card === "Red" ? "🟥" : "🟨";
   if (e.type === "SUBST") return "🔁";
   if (e.type === "VAR") return "📺";
   return "•";

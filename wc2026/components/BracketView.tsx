@@ -1,5 +1,6 @@
 import type { BracketSlot, SlotSource, Stage, Team } from "@/lib/types";
 import { Flag } from "./ui";
+import { formatET, whereLabel } from "@/lib/venues";
 
 const ROUND_ORDER: { stage: Stage; title: string }[] = [
   { stage: "R32", title: "Round of 32" },
@@ -10,16 +11,21 @@ const ROUND_ORDER: { stage: Stage; title: string }[] = [
 ];
 
 function sourceTeam(src: SlotSource): Team | null {
-  return src.kind === "team" ? src.team : null;
+  if (src.kind === "team") return src.team;
+  if (src.kind === "projected") return src.team;
+  return null;
 }
 
 function sourceLabel(src: SlotSource): string {
   switch (src.kind) {
+    case "label": return src.text;
     case "winner-group": return `Winner ${src.group}`;
     case "runner-group": return `Runner-up ${src.group}`;
     case "third": return "3rd place";
-    case "winner-match": return `Winner ${src.matchId.replace("R32-", "M")}`;
-    case "loser-match": return `Loser ${src.matchId}`;
+    case "winner-match":
+      return src.matchNumber ? `Winner Match ${src.matchNumber}` : "Winner (TBD)";
+    case "loser-match":
+      return src.matchNumber ? `Loser Match ${src.matchNumber}` : "Loser (TBD)";
     default: return "TBD";
   }
 }
@@ -42,9 +48,13 @@ function Row({ src, result, which }: {
     );
   }
   if (team) {
+    const projected = src.kind === "projected";
     return (
-      <div className="row">
-        <span className="nm"><Flag team={team} />{team.name}</span>
+      <div className={`row${projected ? " proj" : ""}`}>
+        <span className="nm">
+          <Flag team={team} />{team.name}
+          {projected && <span className="seed" title={`Currently ${src.from}`}>{src.from}</span>}
+        </span>
         <span className="sc num">–</span>
       </div>
     );
@@ -58,11 +68,22 @@ function Row({ src, result, which }: {
 }
 
 function Tie({ slot }: { slot: BracketSlot }) {
+  const where = whereLabel({ stadium: slot.stadium, city: slot.city, venue: slot.venue });
+  const when = slot.kickoff ? formatET(slot.kickoff) : null;
   return (
     <div className="tie">
-      <div className="lbl">{slot.label}</div>
+      <div className="lbl">
+        {slot.matchNumber ? <span className="mno">Match {slot.matchNumber}</span> : null}
+        <span>{slot.label}</span>
+      </div>
       <Row src={slot.home} which="home" result={slot.result} />
       <Row src={slot.away} which="away" result={slot.result} />
+      {(when || where) && (
+        <div className="tmeta">
+          {when && <span className="tw">{when}</span>}
+          {where && <span className="tv">{where}</span>}
+        </div>
+      )}
     </div>
   );
 }
@@ -70,6 +91,7 @@ function Tie({ slot }: { slot: BracketSlot }) {
 export default function BracketView({ slots }: { slots: BracketSlot[] }) {
   const byStage = (s: Stage) => slots.filter(x => x.stage === s);
   const finalSlot = byStage("FINAL")[0];
+  const bronzeSlot = byStage("THIRD_PLACE")[0];
   const champion = finalSlot?.result?.winner
     ? finalSlot.result[finalSlot.result.winner]
     : null;
@@ -89,6 +111,12 @@ export default function BracketView({ slots }: { slots: BracketSlot[] }) {
                   <div className="lab">Champion</div>
                   <div className="who">{champion ? champion.name : "—"}</div>
                 </div>
+                {bronzeSlot && (
+                  <div className="bronze">
+                    <div className="rtitle">Third place</div>
+                    <Tie slot={bronzeSlot} />
+                  </div>
+                )}
               </div>
             ) : (
               byStage(stage).map(s => <Tie key={s.id} slot={s} />)
