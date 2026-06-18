@@ -5,9 +5,9 @@ import { computeStandings, rankThirdPlace, allGroupsComplete } from "./standings
 import { buildBracket } from "./bracket";
 import { projectBracket } from "./projectBracket";
 
-// Refresh cadence. We poll faster while matches are live so scores and the
-// clock stay current, and ease off when nothing is in play.
-const POLL_LIVE_MS = 10_000;
+// Refresh cadence. We poll quickly while matches are live so goals/scores show
+// up within a few seconds, and ease off when nothing is in play.
+const POLL_LIVE_MS = 5_000;
 const POLL_IDLE_MS = 30_000;
 
 export function useTournament() {
