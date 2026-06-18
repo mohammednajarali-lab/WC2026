@@ -1,5 +1,6 @@
 import type { BracketSlot, SlotSource, Stage, Team } from "@/lib/types";
 import { Flag } from "./ui";
+import { formatET, whereLabel } from "@/lib/venues";
 
 const ROUND_ORDER: { stage: Stage; title: string }[] = [
   { stage: "R32", title: "Round of 32" },
@@ -65,11 +66,22 @@ function Row({ src, result, which }: {
 }
 
 function Tie({ slot }: { slot: BracketSlot }) {
+  const where = whereLabel({ stadium: slot.stadium, city: slot.city, venue: slot.venue });
+  const when = slot.kickoff ? formatET(slot.kickoff) : null;
   return (
     <div className="tie">
-      <div className="lbl">{slot.label}</div>
+      <div className="lbl">
+        {slot.matchNumber ? <span className="mno">Match {slot.matchNumber}</span> : null}
+        <span>{slot.label}</span>
+      </div>
       <Row src={slot.home} which="home" result={slot.result} />
       <Row src={slot.away} which="away" result={slot.result} />
+      {(when || where) && (
+        <div className="tmeta">
+          {when && <span className="tw">{when}</span>}
+          {where && <span className="tv">{where}</span>}
+        </div>
+      )}
     </div>
   );
 }

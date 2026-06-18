@@ -2,6 +2,7 @@ import type {
   BracketSlot, GroupId, Match, MatchEvent, MatchStatus, PlayerStats, SlotSource, Stage,
   StandingRow, StatCategory, StatLeader, Team, TournamentData,
 } from "./types";
+import { KNOCKOUT_VENUES } from "./venues";
 
 // ---------------------------------------------------------------------------
 // FotMob adapter (the user's preferred source for results, stats and info).
@@ -146,6 +147,7 @@ function matchupToSlot(mu: any, fallbackStage: Stage): BracketSlot {
     id: String(game?.matchId ?? mu.drawOrder ?? `${stage}-${Math.random()}`),
     stage,
     label: stageLabel(stage, mu.drawOrder),
+    kickoff: game?.status?.utcTime ?? undefined,
     home: slotSource(mu.homeTeam, homeTeam, !!mu.tbdTeam1),
     away: slotSource(mu.awayTeam, awayTeam, !!mu.tbdTeam2),
   };
@@ -266,7 +268,25 @@ export async function fetchTournament(): Promise<TournamentData> {
   }
 
   // --- bracket ---
-  const bracket = props?.playoff ? buildBracketFromPlayoff(props.playoff) : undefined;
+  let bracket = props?.playoff ? buildBracketFromPlayoff(props.playoff) : undefined;
+  if (bracket?.length) {
+    // The playoff slots and the fixtures share FotMob's matchId, so we can
+    // attach each tie's FIFA match number and kickoff, then resolve the
+    // official (fixed) host stadium from the published knockout schedule.
+    const byId = new Map(matches.map((m) => [m.id, m]));
+    bracket = bracket.map((slot) => {
+      const m = byId.get(slot.id);
+      const matchNumber = m?.matchNumber;
+      const venue = matchNumber ? KNOCKOUT_VENUES[matchNumber] : undefined;
+      return {
+        ...slot,
+        matchNumber,
+        kickoff: slot.kickoff ?? m?.kickoff,
+        stadium: venue?.stadium,
+        city: venue?.city,
+      };
+    });
+  }
 
   return {
     teams: [...teamsById.values()],

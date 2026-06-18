@@ -84,9 +84,12 @@ export interface BracketSlot {
   id: string;            // e.g. "R32-1"
   stage: Stage;
   label: string;         // human label, e.g. "Match 73"
+  matchNumber?: number;  // FIFA match number (73–104 for knockouts)
   home: SlotSource;
   away: SlotSource;
-  kickoff?: string;
+  kickoff?: string;      // ISO timestamp (UTC) of the tie
+  stadium?: string;      // e.g. "MetLife Stadium"
+  city?: string;         // e.g. "New York / New Jersey"
   venue?: string;
   // resolved result once played
   result?: {
