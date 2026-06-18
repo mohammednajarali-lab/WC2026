@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useTournament } from "@/lib/useTournament";
-import { Flag } from "@/components/ui";
+import { Flag, LiveMinuteText } from "@/components/ui";
 import { LiveStamp } from "@/components/LiveStamp";
 import { GROUPS } from "@/lib/standings";
 import { formatETShort } from "@/lib/venues";
@@ -108,7 +108,7 @@ function GroupResults({ matches }: { matches: Match[] }) {
             </span>
             <span className={`gr-t a ${aw ? "w" : ""}`}>{m.away?.code ?? "TBD"}<Flag team={m.away} /></span>
             <span className={`gr-st ${m.status === "LIVE" ? "live" : ""}`}>
-              {m.status === "LIVE" ? (m.minute ? `${m.minute}'` : "LIVE") : m.status === "FINISHED" ? "FT" : ""}
+              {m.status === "LIVE" ? <LiveMinuteText m={m} /> : m.status === "FINISHED" ? "FT" : ""}
             </span>
           </Link>
         );

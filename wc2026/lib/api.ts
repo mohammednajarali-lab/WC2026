@@ -75,6 +75,36 @@ function statusFromMatch(s: any): MatchStatus {
   return "SCHEDULED";
 }
 
+// Parse FotMob's live clock into a structured, tickable form.
+// `liveTime.long` is precise "mm:ss" elapsed; `maxTime` is the current period
+// boundary (45/90/105/120); `addedTime` is announced stoppage minutes.
+function parseClock(s: any): Match["clock"] {
+  const lt = s?.liveTime;
+  if (!lt) return null;
+  let elapsed = 0;
+  const long = String(lt.long ?? "");
+  const mmss = long.match(/(\d+):(\d+)/);
+  if (mmss) elapsed = Number(mmss[1]) * 60 + Number(mmss[2]);
+  else {
+    const min = String(lt.short ?? "").match(/\d+/);
+    if (min) elapsed = Number(min[0]) * 60;
+  }
+  return {
+    elapsed,
+    max: Number(lt.maxTime) || 90,
+    added: Number(lt.addedTime) || 0,
+    // The clock advances only while the match is actually ongoing (not at the
+    // half-time break or other stoppages).
+    running: s?.ongoing === true,
+  };
+}
+
+// A best-effort minute snapshot (used as a fallback where ticking isn't wired).
+function clockMinute(clock: Match["clock"]): number | null {
+  if (!clock) return null;
+  return Math.min(clock.max, Math.floor(clock.elapsed / 60) + 1);
+}
+
 // "2 - 0" / "2-0" => [2, 0]
 function parseScoreStr(str: unknown): [number | null, number | null] {
   if (typeof str !== "string") return [null, null];
@@ -217,13 +247,16 @@ export async function fetchTournament(): Promise<TournamentData> {
     if (home) teamsById.set(home.id, home);
     if (away) teamsById.set(away.id, away);
 
+    const clock = status === "LIVE" ? parseClock(f.status) : null;
+
     matches.push({
       id: String(f.id),
       pageUrl: typeof f.pageUrl === "string" ? f.pageUrl : undefined,
       stage,
       group: stage === "GROUP" && f.group ? (String(f.group).toUpperCase() as GroupId) : undefined,
       status,
-      minute: f.status?.liveTime?.short ? Number(String(f.status.liveTime.short).replace(/\D/g, "")) || null : null,
+      clock,
+      minute: clockMinute(clock),
       kickoff: f.status?.utcTime ?? new Date().toISOString(),
       home, away,
       homeScore: hs,

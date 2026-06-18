@@ -30,8 +30,12 @@ export function computeStandings(teams: Team[], matches: Match[]): Record<GroupI
       rows.set(t.id, blankRow(t, g));
     }
 
+    // Include LIVE matches (with their current score) so the table reflects
+    // what is happening right now, not only completed games. This is what
+    // keeps the groups, third-place race and bracket genuinely live.
     const groupMatches = matches.filter(
-      m => m.stage === "GROUP" && m.group === g && m.status === "FINISHED"
+      m => m.stage === "GROUP" && m.group === g
+      && (m.status === "FINISHED" || m.status === "LIVE")
       && m.home && m.away && m.homeScore != null && m.awayScore != null,
     );
 
@@ -116,10 +120,12 @@ function headToHead(ids: string[], matches: Match[]) {
 }
 
 /**
- * Rank the twelve third-placed teams against each other and return the best 8.
- * Same metric order as group ranking: points, GD, goals scored.
+ * Rank all twelve third-placed teams against each other, tagging the best 8 as
+ * qualified. Same metric order as group ranking: points, GD, goals scored.
+ * Returns every third-placed team (not just the 8) so the UI can show the full
+ * race with a clear qualifying cut line.
  */
-export function bestThirdPlaced(standings: Record<GroupId, StandingRow[]>): StandingRow[] {
+export function rankThirdPlace(standings: Record<GroupId, StandingRow[]>): StandingRow[] {
   const thirds = GROUPS
     .map(g => standings[g]?.[2])
     .filter(Boolean) as StandingRow[];
@@ -129,7 +135,13 @@ export function bestThirdPlaced(standings: Record<GroupId, StandingRow[]>): Stan
     if (y.goalsFor !== x.goalsFor) return y.goalsFor - x.goalsFor;
     return x.team.code.localeCompare(y.team.code);
   });
-  return ranked.slice(0, 8);
+  // Re-rank within the third-place mini-table and flag the top 8 as advancing.
+  return ranked.map((r, i) => ({ ...r, rank: i + 1, qualified: i < 8 }));
+}
+
+/** Best 8 third-placed teams (those that advance). */
+export function bestThirdPlaced(standings: Record<GroupId, StandingRow[]>): StandingRow[] {
+  return rankThirdPlace(standings).filter(r => r.qualified);
 }
 
 // Helper: which group a team plays in, inferred from its group matches.

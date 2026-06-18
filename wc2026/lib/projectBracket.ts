@@ -25,8 +25,12 @@ function placeFromGroup(
 
 /**
  * Assigns the qualifying third-placed teams to the "3XXXXX" slots.
- * Each slot allows thirds from a specific set of groups; we match the
- * most-constrained slots first and hand each the best-ranked compatible third.
+ *
+ * Each slot accepts a third from a specific set of groups, and each qualifying
+ * third (one per group) must fill exactly one slot. A greedy pick can dead-end
+ * and leave a slot empty, so we solve it as a bipartite matching (Kuhn's
+ * augmenting-path algorithm), which always finds a complete assignment when one
+ * exists. Slots are processed most-constrained-first for stability.
  */
 function assignThirds(
   thirdSlots: { ref: string; allowed: Set<string> }[],
@@ -35,12 +39,40 @@ function assignThirds(
   const ranked = thirds
     .filter((t) => (t.qualified ?? false) && realTeam(t.team))
     .sort((a, b) => (a.rank || 0) - (b.rank || 0)); // best thirds first
-  const out = new Map<string, Team>();
-  const usedGroup = new Set<string>();
 
-  for (const slot of [...thirdSlots].sort((a, b) => a.allowed.size - b.allowed.size)) {
-    const pick = ranked.find((t) => slot.allowed.has(t.group) && !usedGroup.has(t.group));
-    if (pick) { out.set(slot.ref, pick.team); usedGroup.add(pick.group); }
+  // group letter -> qualifying third team
+  const thirdByGroup = new Map<string, Team>();
+  for (const t of ranked) if (!thirdByGroup.has(t.group)) thirdByGroup.set(t.group, t.team);
+
+  const slots = [...thirdSlots].sort((a, b) => a.allowed.size - b.allowed.size);
+
+  // groupTaken: group letter -> slot ref currently holding that group's third.
+  const groupToSlot = new Map<string, string>();
+
+  const tryAssign = (slotIdx: number, seen: Set<string>): boolean => {
+    const slot = slots[slotIdx];
+    // Prefer better-ranked thirds first for a stable, sensible projection.
+    const candidates = ranked
+      .map((t) => t.group)
+      .filter((g) => slot.allowed.has(g) && thirdByGroup.has(g));
+    for (const g of candidates) {
+      if (seen.has(g)) continue;
+      seen.add(g);
+      const holder = groupToSlot.get(g);
+      if (holder === undefined || tryAssign(slots.findIndex((s) => s.ref === holder), seen)) {
+        groupToSlot.set(g, slot.ref);
+        return true;
+      }
+    }
+    return false;
+  };
+
+  for (let i = 0; i < slots.length; i++) tryAssign(i, new Set());
+
+  const out = new Map<string, Team>();
+  for (const [group, ref] of groupToSlot) {
+    const team = thirdByGroup.get(group);
+    if (team) out.set(ref, team);
   }
   return out;
 }

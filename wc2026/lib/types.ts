@@ -25,7 +25,19 @@ export interface Match {
   stage: Stage;
   group?: GroupId;       // only for group-stage matches
   status: MatchStatus;
-  minute?: number | null; // live clock if available
+  minute?: number | null; // live clock snapshot (minute) if available
+  // Structured live clock so the UI can tick smoothly and stay accurate.
+  // `elapsed` is match seconds at the moment the data was captured
+  // (TournamentData.updatedAt); `max` is the current period boundary (45/90/
+  // 105/120); `added` is announced stoppage minutes; `running` is whether the
+  // clock is currently advancing (false at half-time / breaks).
+  clock?: {
+    elapsed: number;
+    max: number;
+    added: number;
+    running: boolean;
+    anchorMs?: number; // epoch ms when `elapsed` was captured (set client-side)
+  } | null;
   kickoff: string;        // ISO timestamp (UTC)
   venue?: string;         // legacy single-string venue (fallback)
   stadium?: string;       // e.g. "MetLife Stadium"

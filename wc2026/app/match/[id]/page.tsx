@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useTournament } from "@/lib/useTournament";
-import { Flag, stageName, statusLabel } from "@/components/ui";
+import { Flag, stageName, StatusPill } from "@/components/ui";
 import { formatET, whereLabel } from "@/lib/venues";
 import MatchStats from "@/components/MatchStats";
 import type { Match, MatchDetailData, MatchEvent } from "@/lib/types";
@@ -40,7 +40,6 @@ export default function MatchPage() {
     </>
   );
 
-  const s = statusLabel(match);
   const where = whereLabel({
     stadium: detail?.info.stadium ?? match.stadium,
     city: detail?.info.city ?? match.city,
@@ -59,7 +58,7 @@ export default function MatchPage() {
             {match.matchNumber ? <b className="mno">Match {match.matchNumber}</b> : null}
             {match.group ? `Group ${match.group}` : stageName(match.stage)}
           </span>
-          <span className={`pill ${s.cls}`}>{s.text}</span>
+          <StatusPill m={match} />
         </div>
 
         <div className="scoreline">

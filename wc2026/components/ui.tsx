@@ -1,6 +1,8 @@
+"use client";
 import Link from "next/link";
 import type { Match, Team } from "@/lib/types";
 import { formatETShort, formatETTime, whereLabel } from "@/lib/venues";
+import { useNow, liveClockLabel } from "@/lib/clock";
 
 export function Flag({ team }: { team: Team | null }) {
   if (!team) return <span className="flag">·</span>;
@@ -27,6 +29,23 @@ export function statusLabel(m: Match): { text: string; cls: string } {
   return { text: formatETShort(m.kickoff), cls: "" };
 }
 
+// Live-ticking minute text, e.g. "45+2'". Falls back to "LIVE" with no clock.
+export function LiveMinuteText({ m }: { m: Match }) {
+  const now = useNow();
+  if (m.status !== "LIVE") return null;
+  return <>{m.clock ? liveClockLabel(m.clock, now) : "LIVE"}</>;
+}
+
+// The status pill shown on every match card: a ticking minute while live,
+// otherwise FT or the scheduled Eastern kickoff time.
+export function StatusPill({ m }: { m: Match }) {
+  if (m.status === "LIVE") {
+    return <span className="pill live"><LiveMinuteText m={m} /></span>;
+  }
+  const s = statusLabel(m);
+  return <span className={`pill ${s.cls}`}>{s.text}</span>;
+}
+
 function sideClass(m: Match, side: "home" | "away") {
   if (m.status !== "FINISHED" || m.homeScore == null || m.awayScore == null) return "";
   const a = side === "home" ? m.homeScore : m.awayScore;
@@ -41,7 +60,6 @@ function sideClass(m: Match, side: "home" | "away") {
 }
 
 export function MatchCard({ m }: { m: Match }) {
-  const s = statusLabel(m);
   const showScore = m.status !== "SCHEDULED";
   const where = whereLabel(m);
   return (
@@ -51,7 +69,7 @@ export function MatchCard({ m }: { m: Match }) {
           {m.matchNumber ? <b className="mno">#{m.matchNumber}</b> : null}
           {m.group ? `Group ${m.group}` : stageName(m.stage)}
         </span>
-        <span className={`pill ${s.cls}`}>{s.text}</span>
+        <StatusPill m={m} />
       </div>
       <Side m={m} side="home" showScore={showScore} />
       <Side m={m} side="away" showScore={showScore} />
@@ -95,11 +113,14 @@ export function Ticker({ matches }: { matches: Match[] }) {
     <div className="ticker">
       {matches.map(m => {
         const s = statusLabel(m);
+        const isLive = m.status === "LIVE";
         return (
           <div className="tcard" key={m.id}>
             <div className="meta">
               <span>{m.group ? `GRP ${m.group}` : stageName(m.stage)}</span>
-              <span className={s.cls === "live" ? "" : ""} style={{ color: s.cls === "live" ? "var(--red)" : undefined }}>{s.text}</span>
+              <span style={{ color: isLive ? "var(--red)" : undefined }}>
+                {isLive ? <LiveMinuteText m={m} /> : s.text}
+              </span>
             </div>
             <div className="trow">
               <span className="t"><Flag team={m.home} />{m.home?.code ?? "TBD"}</span>
