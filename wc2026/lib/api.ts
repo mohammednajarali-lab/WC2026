@@ -43,8 +43,15 @@ function pageHeaders() {
 }
 
 // Pull and parse the Next.js data island from a FotMob page.
-async function fetchNextData(url: string): Promise<any> {
-  const res = await fetch(url, { headers: pageHeaders(), cache: "no-store" });
+async function fetchNextData(url: string, timeoutMs = 12_000): Promise<any> {
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), timeoutMs);
+  let res: Response;
+  try {
+    res = await fetch(url, { headers: pageHeaders(), cache: "no-store", signal: ac.signal });
+  } finally {
+    clearTimeout(t);
+  }
   if (!res.ok) throw new Error(`FotMob ${res.status} for ${url}`);
   const html = await res.text();
   const m = html.match(
@@ -262,6 +269,52 @@ function applyOfficialFeeders(bracket: BracketSlot[]): void {
   }
 }
 
+// The league overview page is heavily CDN-cached by FotMob, so a match it still
+// reports as "live" may in reality have ended (with a different, final score).
+// For every match the overview calls LIVE, re-fetch its authoritative match
+// page and override status / score / clock from it. This is what makes the live
+// score accurate and lets us flip a tie to FT the moment it actually finishes.
+async function reconcileLiveMatches(matches: Match[]): Promise<void> {
+  const live = matches.filter((m) => m.status === "LIVE" && m.pageUrl);
+  if (!live.length) return;
+
+  await Promise.allSettled(
+    live.map(async (m) => {
+      const url = `${FOTMOB_ORIGIN}${m.pageUrl}`;
+      const pp = await fetchNextData(url, 7_000);
+      const st = pp?.header?.status;
+      if (!st) return;
+
+      // Authoritative scores come from header.teams (numeric) with scoreStr as
+      // a fallback.
+      const teams: any[] = Array.isArray(pp.header?.teams) ? pp.header.teams : [];
+      let hs: number | null = null, as: number | null = null;
+      if (teams.length === 2 && teams[0]?.score != null && teams[1]?.score != null) {
+        hs = Number(teams[0].score); as = Number(teams[1].score);
+      } else {
+        [hs, as] = parseScoreStr(st.scoreStr);
+      }
+      if (hs != null) m.homeScore = hs;
+      if (as != null) m.awayScore = as;
+
+      if (st.finished) {
+        m.status = "FINISHED";
+        m.clock = null;
+        m.minute = null;
+      } else if (st.started) {
+        m.status = "LIVE";
+        const clock = parseClock({ ...st, ongoing: pp.ongoing });
+        m.clock = clock;
+        m.minute = clockMinute(clock);
+      } else {
+        m.status = "SCHEDULED";
+        m.clock = null;
+        m.minute = null;
+      }
+    }),
+  );
+}
+
 // ---------- main entry point ----------
 
 export async function fetchTournament(): Promise<TournamentData> {
@@ -297,6 +350,10 @@ export async function fetchTournament(): Promise<TournamentData> {
       awayScore: as,
     });
   }
+
+  // Correct any matches the (CDN-cached) overview still shows as live using
+  // each match's authoritative page, so scores/clock/FT are accurate.
+  await reconcileLiveMatches(matches);
 
   // Group-stage match numbers (1..72) follow kickoff order. Knockout numbers
   // (73..104) are NOT chronological — they're fixed by the official FIFA
