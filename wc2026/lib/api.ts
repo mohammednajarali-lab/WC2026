@@ -1,5 +1,6 @@
 import type {
-  BracketSlot, GroupId, Match, MatchEvent, MatchStatus, PlayerStats, SlotSource, Stage,
+  BracketSlot, GroupId, Match, MatchDetailData, MatchEvent, MatchStat, MatchStatGroup,
+  MatchStatus, PlayerStats, SlotSource, Stage,
   StandingRow, StatCategory, StatLeader, Team, TournamentData,
 } from "./types";
 import { KNOCKOUT_VENUES } from "./venues";
@@ -299,7 +300,9 @@ export async function fetchTournament(): Promise<TournamentData> {
   };
 }
 
-// ---------- per-match box score (events) ----------
+// ---------- per-match box score (events + key match facts) ----------
+// Mirrors FotMob's match "Facts" tab: a timeline of events plus the team-stat
+// comparison ("Key match facts"), match info, and Player of the Match.
 
 function eventType(t: string): MatchEvent["type"] {
   const s = (t || "").toLowerCase();
@@ -307,15 +310,90 @@ function eventType(t: string): MatchEvent["type"] {
   if (s === "card") return "CARD";
   if (s.includes("substitution") || s === "subst") return "SUBST";
   if (s === "var") return "VAR";
+  if (s === "half") return "PERIOD";
+  if (s === "addedtime") return "ADDED";
   return "OTHER";
 }
 
-export interface MatchDetail {
-  events: MatchEvent[];
-  venue?: { stadium?: string; city?: string };
+// Title text for a half marker, based on the minute it sits at.
+function periodText(minute: number): string {
+  if (minute >= 120) return "Full time (AET)";
+  if (minute >= 105) return "End of extra time";
+  if (minute >= 90) return "Full time";
+  if (minute >= 45) return "Half time";
+  return "Kick off";
 }
 
-export async function fetchMatchEvents(pageUrlOrId: string): Promise<MatchDetail> {
+function mapEvent(e: any): MatchEvent | null {
+  const type = eventType(e.type);
+  const minute = Number(e.time) || 0;
+  const extra = e.overloadTime != null ? Number(e.overloadTime) : null;
+  const side: MatchEvent["side"] =
+    type === "PERIOD" || type === "ADDED" ? "none" : e.isHome ? "home" : "away";
+
+  if (type === "ADDED") {
+    const n = String(e.minutesAddedStr ?? "").match(/\d+/)?.[0];
+    return { minute, extra, type, side, text: n ? `+${n} min added` : "Added time" };
+  }
+  if (type === "PERIOD") {
+    return { minute, extra, type, side, text: periodText(minute) };
+  }
+
+  const base: MatchEvent = {
+    minute, extra, type, side,
+    player: e.player?.name ?? e.nameStr ?? e.fullName ?? undefined,
+  };
+
+  if (type === "GOAL") {
+    base.assist = e.assistInput ?? e.assist?.name ?? undefined;
+    base.ownGoal = !!e.ownGoal;
+    base.detail = e.ownGoal ? "Own goal"
+      : e.goalDescription
+      ?? (e.goalDescriptionKey === "header" ? "Header" : undefined);
+    if (Array.isArray(e.newScore) && e.newScore.length === 2) {
+      base.score = [Number(e.newScore[0]), Number(e.newScore[1])];
+    }
+  } else if (type === "CARD") {
+    base.card = e.card === "Red" ? "Red" : "Yellow";
+    base.detail = e.cardDescription ?? `${base.card} card`;
+  } else if (type === "SUBST" && Array.isArray(e.swap) && e.swap.length === 2) {
+    // swap[0] is the player coming on, swap[1] the player going off.
+    base.player = e.swap[0]?.name ?? base.player;
+    base.playerOut = e.swap[1]?.name ?? undefined;
+  }
+  return base;
+}
+
+// Build the comparison bar fraction from FotMob's display strings, e.g.
+// "60", "467 (90%)", "1.46" -> a leading number we can scale.
+function leadingNumber(v: unknown): number | undefined {
+  if (typeof v === "number") return v;
+  const m = String(v ?? "").match(/-?\d+(\.\d+)?/);
+  return m ? Number(m[0]) : undefined;
+}
+
+function mapStatGroups(periods: any): MatchStatGroup[] {
+  const groups: any[] = periods?.All?.stats;
+  if (!Array.isArray(groups)) return [];
+  return groups.map((g): MatchStatGroup => ({
+    title: String(g.title ?? ""),
+    stats: (g.stats ?? [])
+      // Drop the "title"-type spacer rows that only repeat the group name.
+      .filter((s: any) => s.type !== "title" && Array.isArray(s.stats))
+      .map((s: any): MatchStat => {
+        const [h, a] = s.stats;
+        return {
+          label: String(s.title ?? ""),
+          home: h == null ? "-" : String(h),
+          away: a == null ? "-" : String(a),
+          homeNum: leadingNumber(h),
+          awayNum: leadingNumber(a),
+        };
+      }),
+  })).filter((g) => g.stats.length > 0);
+}
+
+export async function fetchMatchEvents(pageUrlOrId: string): Promise<MatchDetailData> {
   // We need the full FotMob match URL. Fixtures hand us a pageUrl; if only an
   // id is available we can still hit the matches route with a stub slug.
   const url = pageUrlOrId.startsWith("/")
@@ -323,30 +401,42 @@ export async function fetchMatchEvents(pageUrlOrId: string): Promise<MatchDetail
     : `${FOTMOB_ORIGIN}/matches/match/${pageUrlOrId}`;
 
   const props = await fetchNextData(url);
-  const mf = props?.content?.matchFacts;
+  const content = props?.content ?? {};
+  const mf = content.matchFacts ?? {};
+
   const rows: any[] = Array.isArray(mf?.events?.events)
     ? mf.events.events
     : Array.isArray(mf?.events) ? mf.events : [];
 
   const events: MatchEvent[] = rows
     .filter((e) => e && e.type && e.time != null)
-    .map((e) => ({
-      minute: Number(e.time) || 0,
-      extra: e.overloadTime != null ? Number(e.overloadTime) : null,
-      type: eventType(e.type),
-      side: (e.isHome ? "home" : "away") as "home" | "away",
-      player: e.player?.name ?? e.nameStr ?? e.fullName ?? undefined,
-      assist: e.assistStr ?? e.assist?.name ?? undefined,
-      detail: e.ownGoal ? "Own Goal"
-        : e.card ? `${e.card} Card`
-        : e.goalDescription ?? undefined,
-    }))
+    .map(mapEvent)
+    .filter((e): e is MatchEvent => e !== null)
     .sort((a, b) => (a.minute + (a.extra ?? 0) / 100) - (b.minute + (b.extra ?? 0) / 100));
 
-  const st = mf?.infoBox?.Stadium;
-  const venue = st ? { stadium: st.name, city: st.city } : undefined;
+  const statGroups = mapStatGroups(content.stats?.Periods);
 
-  return { events, venue };
+  const ib = mf.infoBox ?? {};
+  const st = ib.Stadium;
+  const info: MatchDetailData["info"] = {
+    stadium: st?.name,
+    city: st?.city,
+    referee: ib.Referee?.text,
+    attendance: typeof ib.Attendance === "number" ? ib.Attendance : undefined,
+    kickoff: ib["Match Date"]?.utcTime,
+  };
+
+  let motm: MatchDetailData["motm"];
+  const p = mf.playerOfTheMatch;
+  if (p?.name) {
+    motm = {
+      name: p.name.fullName ?? `${p.name.firstName ?? ""} ${p.name.lastName ?? ""}`.trim(),
+      teamName: p.teamName,
+      rating: p.rating?.num,
+    };
+  }
+
+  return { events, statGroups, info, motm, source: "api" };
 }
 
 // ---------------------------------------------------------------------------

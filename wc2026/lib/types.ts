@@ -47,11 +47,51 @@ export interface Match {
 export interface MatchEvent {
   minute: number;
   extra?: number | null;   // stoppage-time minutes, e.g. 90+3 -> extra: 3
-  type: "GOAL" | "CARD" | "SUBST" | "VAR" | "OTHER";
-  side: "home" | "away";
+  // PERIOD = half-time / full-time markers; ADDED = stoppage-time announcements.
+  type: "GOAL" | "CARD" | "SUBST" | "VAR" | "PERIOD" | "ADDED" | "OTHER";
+  side: "home" | "away" | "none";
   player?: string;
   assist?: string;
-  detail?: string;         // "Yellow Card", "Penalty", "Own Goal", ...
+  playerOut?: string;      // for substitutions: player coming off
+  detail?: string;         // "Yellow Card", "Penalty", "Own Goal", "Header", ...
+  card?: "Yellow" | "Red";
+  ownGoal?: boolean;
+  score?: [number, number]; // running score after a goal [home, away]
+  text?: string;           // free-text label for PERIOD / ADDED markers
+}
+
+// One row in the "Key match facts" panel (FotMob's team-stats comparison).
+export interface MatchStat {
+  label: string;
+  home: string;            // already-formatted value, e.g. "60%" or "467 (90%)"
+  away: string;
+  homeNum?: number;        // numeric value for the comparison bar, when sensible
+  awayNum?: number;
+}
+
+export interface MatchStatGroup {
+  title: string;           // e.g. "Top stats", "Shots", "Passes"
+  stats: MatchStat[];
+}
+
+// Full FotMob-style box score for a single match.
+export interface MatchDetailData {
+  events: MatchEvent[];
+  statGroups: MatchStatGroup[];
+  info: {
+    stadium?: string;
+    city?: string;
+    referee?: string;
+    attendance?: number;
+    kickoff?: string;
+  };
+  motm?: {
+    name: string;
+    teamName?: string;
+    rating?: string;
+  };
+  source: "api";
+  error?: string;
 }
 
 export type Stage =

@@ -299,22 +299,48 @@ tr.q3 td:first-child { color: var(--amber); font-weight: 800; }
 .penline { font-size: 12px; color: var(--amber); font-weight: 700; margin-top: 2px; }
 .mhead-meta { display: flex; flex-wrap: wrap; gap: 8px 18px; justify-content: center; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
 
-.goalstrip { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 18px; }
-.gchip { font-size: 12px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); }
-.gchip.home { border-left: 3px solid var(--cyan); }
-.gchip.away { border-left: 3px solid var(--magenta); }
+/* player of the match */
+.motm { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.motm-tag { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--ink); background: var(--amber); border-radius: 4px; padding: 2px 7px; font-weight: 800; }
+.motm-name { font-weight: 700; font-size: 14px; }
+.motm-team { font-size: 12px; color: var(--muted); }
+.motm-rating { margin-left: 2px; font-family: var(--font-display), sans-serif; font-weight: 700; color: var(--ink); background: var(--amber); border-radius: var(--r-sm); padding: 1px 8px; font-size: 13px; }
 
-.timeline { list-style: none; margin: 0; padding: 0; border-left: 2px solid var(--line); }
-.tl { display: flex; align-items: baseline; gap: 10px; padding: 9px 0 9px 16px; position: relative; font-size: 14px; }
-.tl + .tl { border-top: 1px solid var(--line); }
-.tl.away { flex-direction: row; }
-.tl-min { color: var(--faint); font-weight: 700; min-width: 38px; }
+/* timeline */
+.timeline { list-style: none; margin: 0; padding: 0; }
+.tl { display: flex; align-items: baseline; gap: 10px; padding: 10px 14px; position: relative; font-size: 14px; border: 1px solid var(--line); border-bottom: 0; background: var(--panel); }
+.tl:first-child { border-top-left-radius: var(--r); border-top-right-radius: var(--r); }
+.tl:last-child { border-bottom: 1px solid var(--line); border-bottom-left-radius: var(--r); border-bottom-right-radius: var(--r); }
+.tl.away { flex-direction: row-reverse; text-align: right; }
+.tl.away .tl-body { display: flex; flex-direction: column; }
+.tl-min { color: var(--faint); font-weight: 700; min-width: 42px; }
 .tl-ico { width: 22px; text-align: center; }
 .tl-body b { font-weight: 600; }
+.tl-score { font-weight: 800; color: var(--cyan); }
 .tl-sub { color: var(--muted); font-size: 12.5px; }
-.tl.home::before, .tl.away::before { content: ""; position: absolute; left: -7px; top: 16px; width: 10px; height: 10px; border-radius: 50%; background: var(--panel-2); border: 2px solid var(--line-2); }
-.tl.home::before { border-color: var(--cyan); }
-.tl.away::before { border-color: var(--magenta); }
+/* half-time / added-time markers */
+.tl.marker { background: transparent; border: 0; justify-content: center; align-items: center; gap: 12px; padding: 8px 0; }
+.tl.marker .tl-marker-line { flex: 1; height: 1px; background: var(--line); }
+.tl.marker .tl-marker-text { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--faint); font-weight: 700; white-space: nowrap; }
+
+/* key match facts */
+.msteamhead { display: flex; justify-content: space-between; align-items: center; font-weight: 800; font-size: 13px; letter-spacing: .04em; color: var(--muted); margin-bottom: 10px; }
+.msteamhead .flag { font-size: 18px; width: auto; vertical-align: middle; }
+.msteamhead .flag img { width: 20px; height: 20px; vertical-align: middle; }
+.msgroups { display: grid; gap: 14px; }
+.msgroup { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; }
+.mstitle { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); }
+.msrow { padding: 7px 0; }
+.msrow + .msrow { border-top: 1px solid var(--line); }
+.msvals { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; }
+.msvals .msv { font-weight: 700; font-size: 14px; color: var(--muted); }
+.msvals .msv:first-child { text-align: left; }
+.msvals .msv:last-child { text-align: right; }
+.msvals .msv.lead { color: var(--text); }
+.mslabel { font-size: 12px; color: var(--muted); text-align: center; white-space: nowrap; }
+.msbar { display: flex; height: 5px; border-radius: 3px; overflow: hidden; margin-top: 7px; background: var(--line); gap: 2px; }
+.msbar-h { background: var(--cyan); border-radius: 3px 0 0 3px; }
+.msbar-a { background: var(--magenta); border-radius: 0 3px 3px 0; }
 
 /* ---------- per-group results ---------- */
 .gresults { border-top: 1px solid var(--line); padding: 8px 12px 12px; display: flex; flex-direction: column; gap: 2px; }
