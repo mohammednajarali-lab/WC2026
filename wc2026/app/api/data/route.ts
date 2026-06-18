@@ -10,7 +10,7 @@ import type { TournamentData } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
 let cache: { data: TournamentData; at: number } | null = null;
-const TTL_MS = 60_000; // 60s: fresh enough for live, gentle on the source
+const TTL_MS = 15_000; // 15s: fresh for the live clock, still gentle on the source
 
 export async function GET() {
   if (cache && Date.now() - cache.at < TTL_MS) {
@@ -35,6 +35,6 @@ export async function GET() {
 
 function cacheHeaders() {
   return {
-    "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
+    "Cache-Control": "public, s-maxage=15, stale-while-revalidate=60",
   };
 }

@@ -111,6 +111,37 @@ export type SlotSource =
   | { kind: "label"; text: string }               // provider placeholder, e.g. "1E", "3ABCDF"
   | { kind: "tbd" };
 
+// ---- player & team leaderboards (FotMob "Stats" tab) ----
+
+export interface StatLeader {
+  rank: number;
+  id: string;
+  name: string;
+  ccode?: string;        // country code, e.g. "ARG"
+  teamId?: string;
+  teamName?: string;
+  value: number;         // primary stat value
+  sub?: number | null;   // secondary value (e.g. penalties within goals)
+  matches?: number;
+  minutes?: number;
+  image?: string;        // player headshot (players only)
+}
+
+export interface StatCategory {
+  key: string;           // FotMob stat name, e.g. "goals"
+  title: string;         // human header, e.g. "Top scorer"
+  fractions?: number;    // decimal places for the value
+  kind: "player" | "team";
+  leaders: StatLeader[];
+}
+
+export interface PlayerStats {
+  categories: StatCategory[];
+  updatedAt: string;
+  source: "api" | "seed";
+  error?: string;
+}
+
 export interface TournamentData {
   teams: Team[];
   matches: Match[];

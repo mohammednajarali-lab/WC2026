@@ -4,7 +4,10 @@ import type { TournamentData } from "./types";
 import { computeStandings, bestThirdPlaced, allGroupsComplete } from "./standings";
 import { buildBracket } from "./bracket";
 
-const POLL_MS = 30_000;
+// Refresh cadence. We poll faster while matches are live so scores and the
+// clock stay current, and ease off when nothing is in play.
+const POLL_LIVE_MS = 10_000;
+const POLL_IDLE_MS = 30_000;
 
 export function useTournament() {
   const [data, setData] = useState<TournamentData | null>(null);
@@ -13,20 +16,34 @@ export function useTournament() {
 
   useEffect(() => {
     let alive = true;
+    let timer: ReturnType<typeof setTimeout>;
+
     async function load() {
       try {
         const res = await fetch("/api/data", { cache: "no-store" });
-        const json = await res.json();
+        const json = (await res.json()) as TournamentData;
         if (alive) { setData(json); setError(null); }
+        return json;
       } catch (e) {
         if (alive) setError(String(e));
+        return null;
       } finally {
         if (alive) setLoading(false);
       }
     }
-    load();
-    const id = setInterval(load, POLL_MS);
-    return () => { alive = false; clearInterval(id); };
+
+    async function loop() {
+      const json = await load();
+      if (!alive) return;
+      const anyLive = !!json?.matches?.some((m) => m.status === "LIVE");
+      timer = setTimeout(loop, anyLive ? POLL_LIVE_MS : POLL_IDLE_MS);
+    }
+
+    loop();
+    // Refresh immediately when the tab regains focus.
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+    return () => { alive = false; clearTimeout(timer); window.removeEventListener("focus", onFocus); };
   }, []);
 
   // Prefer the provider's official tables and bracket when they're present

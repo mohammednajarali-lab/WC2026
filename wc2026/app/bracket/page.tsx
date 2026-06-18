@@ -1,13 +1,17 @@
 "use client";
 import { useTournament } from "@/lib/useTournament";
 import BracketView from "@/components/BracketView";
+import { LiveStamp } from "@/components/LiveStamp";
 
 export default function BracketPage() {
   const { bracket, groupsDone, data } = useTournament();
 
   return (
     <>
-      <h1 className="page">Bracket</h1>
+      <div className="pagehead">
+        <h1 className="page">Bracket</h1>
+        <LiveStamp updatedAt={data?.updatedAt} live={data?.source === "api"} />
+      </div>
       <p className="sub">
         The road to MetLife Stadium on July 19. Slots fill automatically — group winners and
         runners-up the moment a group finishes, the eight best third-placed teams once every

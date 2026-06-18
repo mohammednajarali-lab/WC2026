@@ -1,6 +1,7 @@
 "use client";
 import { useTournament } from "@/lib/useTournament";
 import { MatchCard, Ticker } from "@/components/ui";
+import { LiveStamp } from "@/components/LiveStamp";
 import type { Match } from "@/lib/types";
 
 function isToday(iso: string) {
@@ -9,7 +10,7 @@ function isToday(iso: string) {
 }
 
 export default function Home() {
-  const { data, loading } = useTournament();
+  const { data } = useTournament();
   const matches = data?.matches ?? [];
 
   const live = matches.filter(m => m.status === "LIVE");
@@ -31,8 +32,9 @@ export default function Home() {
           : <span>No matches live right now</span>}
         <span>·</span>
         <span>{matches.length} fixtures</span>
-        {data?.source === "seed" && <span className="pill seed">Sample data — add API key for live</span>}
-        {loading && <span>· loading…</span>}
+        {data?.source === "seed" && <span className="pill seed">Sample data — source unavailable</span>}
+        <span className="spacer" />
+        <LiveStamp updatedAt={data?.updatedAt} live={data?.source === "api"} />
       </div>
 
       <h1 className="page">The 48 are here.</h1>

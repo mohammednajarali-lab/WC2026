@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useTournament } from "@/lib/useTournament";
 import { Flag } from "@/components/ui";
+import { LiveStamp } from "@/components/LiveStamp";
 import { GROUPS } from "@/lib/standings";
 import { formatETShort } from "@/lib/venues";
 import type { Match, StandingRow } from "@/lib/types";
@@ -16,7 +17,10 @@ export default function GroupsPage() {
 
   return (
     <>
-      <h1 className="page">Groups</h1>
+      <div className="pagehead">
+        <h1 className="page">Groups</h1>
+        <LiveStamp updatedAt={data?.updatedAt} live={data?.source === "api"} />
+      </div>
       <p className="sub">
         Top two of every group qualify automatically. The eight best third-placed teams
         take the remaining knockout spots — so third place is its own live race.

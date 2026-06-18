@@ -1,6 +1,6 @@
 import type {
-  BracketSlot, GroupId, Match, MatchEvent, MatchStatus, SlotSource, Stage,
-  StandingRow, Team, TournamentData,
+  BracketSlot, GroupId, Match, MatchEvent, MatchStatus, PlayerStats, SlotSource, Stage,
+  StandingRow, StatCategory, StatLeader, Team, TournamentData,
 } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -22,6 +22,10 @@ const FOTMOB_ORIGIN = "https://www.fotmob.com";
 
 function teamLogo(id: string | number): string {
   return `https://images.fotmob.com/image_resources/logo/teamlogo/${id}.png`;
+}
+
+function playerImage(id: string | number): string {
+  return `https://images.fotmob.com/image_resources/playerimages/${id}.png`;
 }
 
 // Browser-like headers so FotMob serves the fully-rendered page.
@@ -310,7 +314,7 @@ export async function fetchMatchEvents(pageUrlOrId: string): Promise<MatchDetail
       minute: Number(e.time) || 0,
       extra: e.overloadTime != null ? Number(e.overloadTime) : null,
       type: eventType(e.type),
-      side: e.isHome ? "home" : "away",
+      side: (e.isHome ? "home" : "away") as "home" | "away",
       player: e.player?.name ?? e.nameStr ?? e.fullName ?? undefined,
       assist: e.assistStr ?? e.assist?.name ?? undefined,
       detail: e.ownGoal ? "Own Goal"
@@ -323,4 +327,120 @@ export async function fetchMatchEvents(pageUrlOrId: string): Promise<MatchDetail
   const venue = st ? { stadium: st.name, city: st.city } : undefined;
 
   return { events, venue };
+}
+
+// ---------------------------------------------------------------------------
+// Player & team leaderboards (the FotMob "Stats" tab).
+//
+// The league page embeds 30+ stat categories under stats.players / stats.teams.
+// Each carries a `topThree` preview plus a `fetchAllUrl` to the full ranked
+// list (gzipped JSON on data.fotmob.com). We surface the categories that match
+// FotMob's headline stats and expand the most important ones to full tables.
+// ---------------------------------------------------------------------------
+
+// Categories we expand to a full leaderboard, in display order. Keys match
+// FotMob's stat `name`. Anything else still shows via its top-three preview.
+const PLAYER_STAT_ORDER = [
+  "goals", "goal_assist", "_goals_and_goal_assist", "rating",
+  "expected_goals", "expected_assists", "big_chance_created",
+  "total_att_assist", "clean_sheet", "saves",
+  "yellow_card", "red_card", "mins_played",
+];
+const TEAM_STAT_ORDER = [
+  "rating_team", "goals_team_match", "goals_conceded_team_match",
+  "possession_percentage_team", "clean_sheet_team", "big_chance_team",
+  "expected_goals_team", "total_yel_card_team", "total_red_card_team",
+];
+
+const LEADER_LIMIT = 25;
+
+async function fetchJson(url: string): Promise<any | null> {
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": pageHeaders()["User-Agent"], Accept: "application/json" },
+      // Slightly longer cache; leaderboards move less often than the live clock.
+      next: { revalidate: 0 },
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+function previewLeaders(topThree: any[], isPlayer: boolean): StatLeader[] {
+  return (topThree || []).map((p) => ({
+    rank: Number(p.rank) || 0,
+    id: String(p.id ?? p.participantId ?? ""),
+    name: p.name ?? p.participantName ?? "",
+    ccode: p.ccode ?? p.countryCode,
+    teamId: p.teamId != null ? String(p.teamId) : undefined,
+    teamName: p.teamName,
+    value: Number(p.value ?? p.stat?.value ?? 0),
+    sub: p.subStatValue != null ? Number(p.subStatValue) : null,
+    image: isPlayer && p.id != null ? playerImage(p.id) : undefined,
+  }));
+}
+
+function fullLeaders(json: any, isPlayer: boolean): StatLeader[] | null {
+  const list: any[] =
+    json?.TopLists?.[0]?.StatList ?? json?.TopLists?.[0]?.statList ?? [];
+  if (!Array.isArray(list) || !list.length) return null;
+  return list.slice(0, LEADER_LIMIT).map((p) => {
+    const id = String(p.ParticiantId ?? p.ParticipantId ?? p.id ?? "");
+    return {
+      rank: Number(p.Rank) || 0,
+      id,
+      name: p.ParticipantName ?? p.name ?? "",
+      ccode: p.ParticipantCountryCode ?? p.ccode,
+      teamId: p.TeamId != null ? String(p.TeamId) : undefined,
+      teamName: p.TeamName,
+      value: Number(p.StatValue ?? 0),
+      sub: p.SubStatValue != null ? Number(p.SubStatValue) : null,
+      matches: p.MatchesPlayed != null ? Number(p.MatchesPlayed) : undefined,
+      minutes: p.MinutesPlayed != null ? Number(p.MinutesPlayed) : undefined,
+      image: isPlayer && id ? playerImage(id) : undefined,
+    };
+  });
+}
+
+async function buildCategories(
+  raw: any[], order: string[], kind: "player" | "team",
+): Promise<StatCategory[]> {
+  if (!Array.isArray(raw)) return [];
+  const isPlayer = kind === "player";
+  const byKey = new Map<string, any>();
+  for (const c of raw) byKey.set(String(c.name), c);
+
+  // Expand the prioritised categories with their full leaderboards in parallel.
+  const wanted = order.map((k) => byKey.get(k)).filter(Boolean);
+  const full = await Promise.all(
+    wanted.map((c) => (c.fetchAllUrl ? fetchJson(c.fetchAllUrl) : Promise.resolve(null))),
+  );
+
+  return wanted.map((c, i) => {
+    const leaders = fullLeaders(full[i], isPlayer) ?? previewLeaders(c.topThree, isPlayer);
+    return {
+      key: String(c.name),
+      title: String(c.header ?? c.name),
+      fractions: c.topThree?.[0]?.stat?.fractions ?? 0,
+      kind,
+      leaders,
+    } as StatCategory;
+  }).filter((c) => c.leaders.length > 0);
+}
+
+export async function fetchPlayerStats(): Promise<PlayerStats> {
+  const props = await fetchNextData(LEAGUE_PAGE);
+  const stats = props?.stats ?? {};
+  const [players, teams] = await Promise.all([
+    buildCategories(stats.players ?? [], PLAYER_STAT_ORDER, "player"),
+    buildCategories(stats.teams ?? [], TEAM_STAT_ORDER, "team"),
+  ]);
+  return {
+    categories: [...players, ...teams],
+    updatedAt: new Date().toISOString(),
+    source: "api",
+  };
 }

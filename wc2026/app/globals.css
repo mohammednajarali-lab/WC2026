@@ -206,6 +206,46 @@ tr.q3 td:first-child { color: var(--amber); font-weight: 800; }
 .stat ol li { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 13.5px; border-top: 1px solid var(--line); }
 .stat ol li .v { margin-left: auto; font-weight: 700; color: var(--muted); }
 
+/* page head + live stamp */
+.pagehead { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.section { font-family: var(--font-display), sans-serif; text-transform: uppercase; letter-spacing: .08em; font-size: 18px; margin: 34px 0 16px; }
+.statusbar .spacer { flex: 1; }
+.livestamp { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--muted); white-space: nowrap; }
+.livestamp .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+.livestamp.on { color: var(--text); }
+.livestamp.on .dot { background: var(--red); box-shadow: 0 0 0 0 rgba(255,66,66,.7); animation: pulse 1.6s infinite; }
+.livestamp .ago { color: var(--faint); font-weight: 600; }
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(255,66,66,.6); }
+  70% { box-shadow: 0 0 0 7px rgba(255,66,66,0); }
+  100% { box-shadow: 0 0 0 0 rgba(255,66,66,0); }
+}
+
+/* leaderboards (FotMob-style stats) */
+.ltabs { display: inline-flex; gap: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 4px; margin-bottom: 18px; }
+.ltabs button { font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; color: var(--muted); background: transparent; border: 0; border-radius: 999px; padding: 7px 18px; transition: all .15s; }
+.ltabs button:hover { color: var(--text); }
+.ltabs button.on { color: var(--ink); background: var(--cyan); }
+.lgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px,1fr)); gap: 14px; }
+.lcard { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; }
+.lhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.lhead h4 { margin: 0; font-size: 13.5px; font-weight: 700; }
+.ltag { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--faint); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; }
+.llist { margin: 6px 0 0; padding: 0; list-style: none; }
+.lrow { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+.lrow:first-child { border-top: 0; }
+.lrank { width: 18px; text-align: center; font-size: 12px; font-weight: 700; color: var(--faint); }
+.avatar { width: 30px; height: 30px; border-radius: 50%; overflow: hidden; flex: 0 0 auto; background: var(--panel-2); display: grid; place-items: center; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.avatar.crest img { object-fit: contain; padding: 4px; }
+.lname { display: flex; flex-direction: column; min-width: 0; }
+.lname .ln { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lname .lt { display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--muted); }
+.lname .ltlogo { width: 13px; height: 13px; object-fit: contain; }
+.lval { margin-left: auto; font-family: var(--font-display), sans-serif; font-size: 18px; font-weight: 700; color: var(--cyan); }
+.lmore { font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px; width: 100%; margin-top: 12px; transition: all .15s; }
+.lmore:hover { color: var(--text); border-color: var(--line-2); }
+
 .sectiontitle { font-family: var(--font-display), sans-serif; text-transform: uppercase; letter-spacing: .08em; font-size: 18px; margin: 30px 0 14px; display: flex; align-items: center; gap: 10px; }
 .sectiontitle::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 
