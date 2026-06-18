@@ -136,6 +136,7 @@ export interface BracketSlot {
   id: string;            // e.g. "R32-1"
   stage: Stage;
   label: string;         // human label, e.g. "Match 73"
+  drawOrder?: number;    // position within its round (1-based), per the official draw
   matchNumber?: number;  // FIFA match number (73–104 for knockouts)
   home: SlotSource;
   away: SlotSource;
@@ -160,8 +161,8 @@ export type SlotSource =
   | { kind: "winner-group"; group: GroupId }      // "1A"
   | { kind: "runner-group"; group: GroupId }      // "2B"
   | { kind: "third"; bucket: string }             // "3rd from group set {A/B/C/D}"
-  | { kind: "winner-match"; matchId: string }     // winner of R32-1
-  | { kind: "loser-match"; matchId: string }      // for third-place playoff
+  | { kind: "winner-match"; matchId: string; matchNumber?: number } // winner of an earlier tie
+  | { kind: "loser-match"; matchId: string; matchNumber?: number }  // loser (third-place playoff)
   | { kind: "team"; team: Team }                  // fully resolved
   | { kind: "projected"; team: Team; from: string } // live projection from current standings (e.g. "1E")
   | { kind: "label"; text: string }               // provider placeholder, e.g. "1E", "3ABCDF"

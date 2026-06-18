@@ -22,8 +22,10 @@ function sourceLabel(src: SlotSource): string {
     case "winner-group": return `Winner ${src.group}`;
     case "runner-group": return `Runner-up ${src.group}`;
     case "third": return "3rd place";
-    case "winner-match": return `Winner ${src.matchId.replace("R32-", "M")}`;
-    case "loser-match": return `Loser ${src.matchId}`;
+    case "winner-match":
+      return src.matchNumber ? `Winner Match ${src.matchNumber}` : "Winner (TBD)";
+    case "loser-match":
+      return src.matchNumber ? `Loser Match ${src.matchNumber}` : "Loser (TBD)";
     default: return "TBD";
   }
 }

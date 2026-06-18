@@ -178,6 +178,7 @@ function matchupToSlot(mu: any, fallbackStage: Stage): BracketSlot {
     id: String(game?.matchId ?? mu.drawOrder ?? `${stage}-${Math.random()}`),
     stage,
     label: stageLabel(stage, mu.drawOrder),
+    drawOrder: mu.drawOrder != null ? Number(mu.drawOrder) : undefined,
     kickoff: game?.status?.utcTime ?? undefined,
     home: slotSource(mu.homeTeam, homeTeam, !!mu.tbdTeam1),
     away: slotSource(mu.awayTeam, awayTeam, !!mu.tbdTeam2),
@@ -226,6 +227,62 @@ function buildBracketFromPlayoff(playoff: any): BracketSlot[] {
     slots.push(matchupToSlot(playoff.bronzeFinal, "THIRD_PLACE"));
   }
   return slots;
+}
+
+// Replace cryptic provider placeholders ("1E/3ABCDF", "Winner EF 5", "Loser
+// SF 1") with accurate feeder references tied to each tie's FIFA match number.
+// We use FotMob's own authoritative labels rather than naive index pairing, so
+// the official knockout "crossing" structure (e.g. QF2 takes the winners of
+// R16 matches 5 & 6, not 3 & 4) is preserved exactly. Runs after match numbers
+// are attached.
+function linkBracketFeeders(bracket: BracketSlot[]): void {
+  // Round code used in "Winner/Loser <code> <n>" -> feeding stage.
+  const CODE_STAGE: Record<string, Stage> = { EF: "R16", QF: "QF", SF: "SF" };
+
+  // Per-stage lookup of slot by its draw order.
+  const orderMap = (st: Stage) => {
+    const map = new Map<number, BracketSlot>();
+    for (const s of bracket) if (s.stage === st && s.drawOrder != null) map.set(s.drawOrder, s);
+    return map;
+  };
+  const maps: Partial<Record<Stage, Map<number, BracketSlot>>> = {
+    R16: orderMap("R16"), QF: orderMap("QF"), SF: orderMap("SF"),
+  };
+
+  // R32 producer lookup: a winning R32 slot is referenced by "<home>/<away>",
+  // e.g. "1E/3ABCDF".
+  const r32Producers = new Map<string, BracketSlot>();
+  for (const s of bracket) {
+    if (s.stage !== "R32") continue;
+    const h = s.home.kind === "label" ? s.home.text : null;
+    const a = s.away.kind === "label" ? s.away.text : null;
+    if (h && a) r32Producers.set(`${h}/${a}`, s);
+  }
+
+  const resolveFeeder = (src: SlotSource): SlotSource => {
+    if (src.kind !== "label") return src; // already a team / projected / tbd
+    const text = src.text.trim();
+
+    const wl = text.match(/^(winner|loser)\s+(EF|QF|SF)\s+(\d+)$/i);
+    if (wl) {
+      const feeder = maps[CODE_STAGE[wl[2].toUpperCase()]]?.get(Number(wl[3]));
+      if (feeder) {
+        const kind = wl[1].toLowerCase() === "loser" ? "loser-match" : "winner-match";
+        return { kind, matchId: feeder.id, matchNumber: feeder.matchNumber };
+      }
+    }
+
+    const r32 = r32Producers.get(text);
+    if (r32) return { kind: "winner-match", matchId: r32.id, matchNumber: r32.matchNumber };
+
+    return src; // leave anything unrecognised untouched
+  };
+
+  for (const s of bracket) {
+    if (s.stage === "R32") continue;
+    s.home = resolveFeeder(s.home);
+    s.away = resolveFeeder(s.away);
+  }
 }
 
 // ---------- main entry point ----------
@@ -320,6 +377,8 @@ export async function fetchTournament(): Promise<TournamentData> {
         city: venue?.city,
       };
     });
+    // Link later-round placeholders to their feeding ties (match numbers).
+    linkBracketFeeders(bracket);
   }
 
   return {
