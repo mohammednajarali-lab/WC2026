@@ -275,6 +275,26 @@ tr.q3 td:first-child { color: var(--amber); font-weight: 800; }
 }
 .fbtn:hover { color: var(--text); border-color: var(--line-2); }
 .fbtn.on { color: var(--ink); background: var(--text); border-color: var(--text); }
+.fbtn.clear { color: var(--magenta); }
+
+/* team / group multi-select filter */
+.mfilter { margin: 0 0 22px; }
+.mfilter-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.mfilter-panel { margin-top: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; }
+.mfilter-section + .mfilter-section { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 14px; }
+.mfilter-label { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--faint); margin-bottom: 9px; font-weight: 700; }
+.mfilter-chips { display: flex; gap: 7px; flex-wrap: wrap; }
+.chip {
+  font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+  color: var(--muted); background: var(--panel-2); border: 1px solid var(--line);
+  border-radius: 999px; padding: 5px 11px; transition: all .12s;
+}
+.chip:hover { color: var(--text); border-color: var(--line-2); }
+.chip.on { color: var(--ink); background: var(--cyan); border-color: var(--cyan); }
+.chip .flag { font-size: 14px; width: auto; }
+.chip .flag img { width: 16px; height: 16px; vertical-align: middle; }
+.chip .x { font-size: 14px; line-height: 1; margin-left: 1px; opacity: .8; }
 .dayblock { margin-bottom: 26px; }
 .dayhead {
   font-family: var(--font-display), sans-serif; text-transform: uppercase;
