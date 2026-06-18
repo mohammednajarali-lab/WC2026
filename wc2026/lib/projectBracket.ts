@@ -111,9 +111,51 @@ export function projectBracket(
     return team ? { kind: "projected", team, from: src.text } : src;
   };
 
-  return bracket.map((slot) =>
+  let out = bracket.map((slot) =>
     slot.stage === "R32" && !slot.result
       ? { ...slot, home: resolve(`${slot.id}:home`, slot.home), away: resolve(`${slot.id}:away`, slot.away) }
       : slot,
   );
+
+  // Propagate actual knockout results up the official feeder tree, so once a
+  // tie is decided, the next round shows the team that advanced instead of a
+  // "Winner Match N" placeholder. Only real results propagate (not R32
+  // projections), and we iterate so multi-round chains resolve in one pass.
+  const winners = new Map<string, Team>();
+  const losers = new Map<string, Team>();
+  const indexResults = () => {
+    for (const s of out) {
+      if (!s.result?.winner) continue;
+      const win = s.result.winner === "home" ? s.result.home : s.result.away;
+      const lose = s.result.winner === "home" ? s.result.away : s.result.home;
+      if (win) winners.set(s.id, win);
+      if (lose) losers.set(s.id, lose);
+    }
+  };
+  const advance = (src: SlotSource): SlotSource => {
+    if (src.kind === "winner-match") {
+      const t = winners.get(src.matchId);
+      if (t) return { kind: "team", team: t };
+    } else if (src.kind === "loser-match") {
+      const t = losers.get(src.matchId);
+      if (t) return { kind: "team", team: t };
+    }
+    return src;
+  };
+
+  for (let pass = 0; pass < 5; pass++) {
+    winners.clear(); losers.clear();
+    indexResults();
+    let changed = false;
+    out = out.map((slot) => {
+      if (slot.result) return slot; // tie already played — keep its own teams
+      const home = advance(slot.home);
+      const away = advance(slot.away);
+      if (home !== slot.home || away !== slot.away) { changed = true; return { ...slot, home, away }; }
+      return slot;
+    });
+    if (!changed) break;
+  }
+
+  return out;
 }

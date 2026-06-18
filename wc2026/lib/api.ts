@@ -4,6 +4,7 @@ import type {
   StandingRow, StatCategory, StatLeader, Team, TournamentData,
 } from "./types";
 import { KNOCKOUT_VENUES } from "./venues";
+import { officialKnockoutNumber, OFFICIAL_FEEDERS } from "./officialBracket";
 
 // ---------------------------------------------------------------------------
 // FotMob adapter (the user's preferred source for results, stats and info).
@@ -174,11 +175,16 @@ function matchupToSlot(mu: any, fallbackStage: Stage): BracketSlot {
   const homeTeam = !mu.tbdTeam1 && h ? toTeam({ id: h.id, name: h.name, shortName: h.shortName }) : null;
   const awayTeam = !mu.tbdTeam2 && a ? toTeam({ id: a.id, name: a.name, shortName: a.shortName }) : null;
 
+  const drawOrder = mu.drawOrder != null ? Number(mu.drawOrder) : undefined;
+  // Authoritative FIFA match number derived from the official bracket position.
+  const matchNumber = officialKnockoutNumber(stage, drawOrder);
+
   const slot: BracketSlot = {
     id: String(game?.matchId ?? mu.drawOrder ?? `${stage}-${Math.random()}`),
     stage,
-    label: stageLabel(stage, mu.drawOrder),
-    drawOrder: mu.drawOrder != null ? Number(mu.drawOrder) : undefined,
+    label: stageLabel(stage),
+    drawOrder,
+    matchNumber,
     kickoff: game?.status?.utcTime ?? undefined,
     home: slotSource(mu.homeTeam, homeTeam, !!mu.tbdTeam1),
     away: slotSource(mu.awayTeam, awayTeam, !!mu.tbdTeam2),
@@ -198,13 +204,12 @@ function matchupToSlot(mu: any, fallbackStage: Stage): BracketSlot {
   return slot;
 }
 
-function stageLabel(stage: Stage, order?: number): string {
-  const n = order && order > 0 ? ` ${order}` : "";
+function stageLabel(stage: Stage): string {
   switch (stage) {
-    case "R32": return `Round of 32${n}`;
-    case "R16": return `Round of 16${n}`;
-    case "QF": return `Quarter-final${n}`;
-    case "SF": return `Semi-final${n}`;
+    case "R32": return "Round of 32";
+    case "R16": return "Round of 16";
+    case "QF": return "Quarter-final";
+    case "SF": return "Semi-final";
     case "THIRD_PLACE": return "Third-place playoff";
     case "FINAL": return "Final";
     default: return stage;
@@ -229,59 +234,31 @@ function buildBracketFromPlayoff(playoff: any): BracketSlot[] {
   return slots;
 }
 
-// Replace cryptic provider placeholders ("1E/3ABCDF", "Winner EF 5", "Loser
-// SF 1") with accurate feeder references tied to each tie's FIFA match number.
-// We use FotMob's own authoritative labels rather than naive index pairing, so
-// the official knockout "crossing" structure (e.g. QF2 takes the winners of
-// R16 matches 5 & 6, not 3 & 4) is preserved exactly. Runs after match numbers
-// are attached.
-function linkBracketFeeders(bracket: BracketSlot[]): void {
-  // Round code used in "Winner/Loser <code> <n>" -> feeding stage.
-  const CODE_STAGE: Record<string, Stage> = { EF: "R16", QF: "QF", SF: "SF" };
+// Rebuild every later-round tie's placeholders from the *official* FIFA feeder
+// tree, so each shows the exact "Winner Match N" / "Loser Match N" reference
+// FIFA published — rather than FotMob's cryptic and (at the semi-final stage)
+// conflicting labels. Each feeder points at the actual feeding tie by its
+// match id so live winners can later be propagated through the bracket. Runs
+// after official match numbers are attached.
+function applyOfficialFeeders(bracket: BracketSlot[]): void {
+  const byNumber = new Map<number, BracketSlot>();
+  for (const s of bracket) if (s.matchNumber != null) byNumber.set(s.matchNumber, s);
 
-  // Per-stage lookup of slot by its draw order.
-  const orderMap = (st: Stage) => {
-    const map = new Map<number, BracketSlot>();
-    for (const s of bracket) if (s.stage === st && s.drawOrder != null) map.set(s.drawOrder, s);
-    return map;
-  };
-  const maps: Partial<Record<Stage, Map<number, BracketSlot>>> = {
-    R16: orderMap("R16"), QF: orderMap("QF"), SF: orderMap("SF"),
-  };
-
-  // R32 producer lookup: a winning R32 slot is referenced by "<home>/<away>",
-  // e.g. "1E/3ABCDF".
-  const r32Producers = new Map<string, BracketSlot>();
-  for (const s of bracket) {
-    if (s.stage !== "R32") continue;
-    const h = s.home.kind === "label" ? s.home.text : null;
-    const a = s.away.kind === "label" ? s.away.text : null;
-    if (h && a) r32Producers.set(`${h}/${a}`, s);
-  }
-
-  const resolveFeeder = (src: SlotSource): SlotSource => {
-    if (src.kind !== "label") return src; // already a team / projected / tbd
-    const text = src.text.trim();
-
-    const wl = text.match(/^(winner|loser)\s+(EF|QF|SF)\s+(\d+)$/i);
-    if (wl) {
-      const feeder = maps[CODE_STAGE[wl[2].toUpperCase()]]?.get(Number(wl[3]));
-      if (feeder) {
-        const kind = wl[1].toLowerCase() === "loser" ? "loser-match" : "winner-match";
-        return { kind, matchId: feeder.id, matchNumber: feeder.matchNumber };
-      }
-    }
-
-    const r32 = r32Producers.get(text);
-    if (r32) return { kind: "winner-match", matchId: r32.id, matchNumber: r32.matchNumber };
-
-    return src; // leave anything unrecognised untouched
+  const feederSource = (n: number, kind: "winner" | "loser"): SlotSource => {
+    const feeder = byNumber.get(n);
+    return {
+      kind: kind === "loser" ? "loser-match" : "winner-match",
+      matchId: feeder?.id ?? `M${n}`,
+      matchNumber: n,
+    };
   };
 
   for (const s of bracket) {
-    if (s.stage === "R32") continue;
-    s.home = resolveFeeder(s.home);
-    s.away = resolveFeeder(s.away);
+    if (s.matchNumber == null) continue;
+    const f = OFFICIAL_FEEDERS[s.matchNumber];
+    if (!f) continue; // R32 ties feed from groups, handled by projectBracket
+    s.home = feederSource(f.home, f.kind);
+    s.away = feederSource(f.away, f.kind);
   }
 }
 
@@ -321,9 +298,12 @@ export async function fetchTournament(): Promise<TournamentData> {
     });
   }
 
-  // FIFA-style match numbers (1..104) by kickoff order.
+  // Group-stage match numbers (1..72) follow kickoff order. Knockout numbers
+  // (73..104) are NOT chronological — they're fixed by the official FIFA
+  // bracket, so we assign those from the bracket structure further below.
   matches
     .slice()
+    .filter((m) => m.stage === "GROUP")
     .sort((a, b) => +new Date(a.kickoff) - +new Date(b.kickoff) || a.id.localeCompare(b.id))
     .forEach((m, i) => { m.matchNumber = i + 1; });
 
@@ -361,24 +341,27 @@ export async function fetchTournament(): Promise<TournamentData> {
   // --- bracket ---
   let bracket = props?.playoff ? buildBracketFromPlayoff(props.playoff) : undefined;
   if (bracket?.length) {
-    // The playoff slots and the fixtures share FotMob's matchId, so we can
-    // attach each tie's FIFA match number and kickoff, then resolve the
-    // official (fixed) host stadium from the published knockout schedule.
     const byId = new Map(matches.map((m) => [m.id, m]));
     bracket = bracket.map((slot) => {
       const m = byId.get(slot.id);
-      const matchNumber = m?.matchNumber;
-      const venue = matchNumber ? KNOCKOUT_VENUES[matchNumber] : undefined;
+      // matchNumber is the official FIFA number assigned from the bracket
+      // position; the venue/city are fixed to that number in advance.
+      const venue = slot.matchNumber ? KNOCKOUT_VENUES[slot.matchNumber] : undefined;
       return {
         ...slot,
-        matchNumber,
         kickoff: slot.kickoff ?? m?.kickoff,
         stadium: venue?.stadium,
         city: venue?.city,
       };
     });
-    // Link later-round placeholders to their feeding ties (match numbers).
-    linkBracketFeeders(bracket);
+    // Backfill the official knockout match numbers onto the fixtures list, so
+    // match cards / detail pages show the correct FIFA number (73..104) too.
+    for (const slot of bracket) {
+      const m = byId.get(slot.id);
+      if (m && slot.matchNumber != null) m.matchNumber = slot.matchNumber;
+    }
+    // Rebuild later-round placeholders from the official FIFA feeder tree.
+    applyOfficialFeeders(bracket);
   }
 
   return {
