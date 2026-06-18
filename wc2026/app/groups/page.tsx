@@ -10,7 +10,8 @@ export default function GroupsPage() {
   const { standings, thirds, groupsDone, data } = useTournament();
   if (!standings) return <p className="empty">Loading standings…</p>;
 
-  const thirdIds = new Set(thirds.map(t => t.team.id));
+  const qualifiedThirds = thirds.filter((t, i) => t.qualified ?? i < 8);
+  const thirdIds = new Set(qualifiedThirds.map(t => t.team.id));
   const matchesByGroup = groupMatches(data?.matches ?? []);
 
   return (
@@ -61,14 +62,17 @@ export default function GroupsPage() {
           : "Provisional — updates live as group matches finish. Green = currently in."}
       </p>
       <div className="thirds">
-        {rankThirds(standings).map((r, i) => (
-          <div key={r.team.id} className={`third ${i < 8 ? "in" : "out"}`}>
-            <span className="rk num">{i + 1}</span>
-            <Flag team={r.team} />
-            <span>{r.team.name}</span>
-            <span className="pts num">{r.points}p · {r.group}</span>
-          </div>
-        ))}
+        {thirds.map((r, i) => {
+          const isIn = r.qualified ?? i < 8;
+          return (
+            <div key={r.team.id} className={`third ${isIn ? "in" : "out"}`}>
+              <span className="rk num">{i + 1}</span>
+              <Flag team={r.team} />
+              <span>{r.team.name}</span>
+              <span className="pts num">{r.points}p · {r.group}</span>
+            </div>
+          );
+        })}
       </div>
 
       {data?.source === "seed" && (
@@ -81,15 +85,6 @@ export default function GroupsPage() {
 function rowClass(r: StandingRow, thirdIds: Set<string>) {  if (r.rank <= 2) return r.rank === 1 ? "q1" : "q2";
   if (r.rank === 3 && thirdIds.has(r.team.id)) return "q3";
   return "";
-}
-
-function rankThirds(standings: Record<string, StandingRow[]>) {
-  return GROUPS
-    .map(g => standings[g]?.[2])
-    .filter(Boolean)
-    .sort((a, b) =>
-      b!.points - a!.points || b!.goalDiff - a!.goalDiff || b!.goalsFor - a!.goalsFor
-    ) as StandingRow[];
 }
 
 function GroupResults({ matches }: { matches: Match[] }) {

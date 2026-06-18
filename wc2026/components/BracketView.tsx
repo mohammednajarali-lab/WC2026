@@ -15,6 +15,7 @@ function sourceTeam(src: SlotSource): Team | null {
 
 function sourceLabel(src: SlotSource): string {
   switch (src.kind) {
+    case "label": return src.text;
     case "winner-group": return `Winner ${src.group}`;
     case "runner-group": return `Runner-up ${src.group}`;
     case "third": return "3rd place";
@@ -70,6 +71,7 @@ function Tie({ slot }: { slot: BracketSlot }) {
 export default function BracketView({ slots }: { slots: BracketSlot[] }) {
   const byStage = (s: Stage) => slots.filter(x => x.stage === s);
   const finalSlot = byStage("FINAL")[0];
+  const bronzeSlot = byStage("THIRD_PLACE")[0];
   const champion = finalSlot?.result?.winner
     ? finalSlot.result[finalSlot.result.winner]
     : null;
@@ -89,6 +91,12 @@ export default function BracketView({ slots }: { slots: BracketSlot[] }) {
                   <div className="lab">Champion</div>
                   <div className="who">{champion ? champion.name : "—"}</div>
                 </div>
+                {bronzeSlot && (
+                  <div className="bronze">
+                    <div className="rtitle">Third place</div>
+                    <Tie slot={bronzeSlot} />
+                  </div>
+                )}
               </div>
             ) : (
               byStage(stage).map(s => <Tie key={s.id} slot={s} />)

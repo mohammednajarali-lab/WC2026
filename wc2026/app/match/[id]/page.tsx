@@ -11,6 +11,7 @@ export default function MatchPage() {
   const { id } = useParams<{ id: string }>();
   const { data } = useTournament();
   const [events, setEvents] = useState<MatchEvent[] | null>(null);
+  const [venue, setVenue] = useState<{ stadium?: string; city?: string } | null>(null);
 
   const match = data?.matches.find(m => m.id === id) ?? null;
 
@@ -20,10 +21,14 @@ export default function MatchPage() {
     if (match.events && match.events.length) { setEvents(match.events); return; }
     if (data?.source !== "api" || match.status === "SCHEDULED") { setEvents([]); return; }
     let alive = true;
-    const home = match.home?.id ? `?home=${encodeURIComponent(match.home.id)}` : "";
-    fetch(`/api/match/${encodeURIComponent(match.id)}${home}`, { cache: "no-store" })
+    const qs = match.pageUrl ? `?url=${encodeURIComponent(match.pageUrl)}` : "";
+    fetch(`/api/match/${encodeURIComponent(match.id)}${qs}`, { cache: "no-store" })
       .then(r => r.json())
-      .then(j => { if (alive) setEvents(j.events ?? []); })
+      .then(j => {
+        if (!alive) return;
+        setEvents(j.events ?? []);
+        if (j.venue) setVenue(j.venue);
+      })
       .catch(() => { if (alive) setEvents([]); });
     return () => { alive = false; };
   }, [match, data?.source]);
@@ -37,7 +42,7 @@ export default function MatchPage() {
   );
 
   const s = statusLabel(match);
-  const where = whereLabel(match);
+  const where = whereLabel(venue ? { stadium: venue.stadium, city: venue.city } : match);
   const goals = (events ?? []).filter(e => e.type === "GOAL");
 
   return (

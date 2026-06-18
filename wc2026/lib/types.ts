@@ -21,6 +21,7 @@ export interface Team {
 export interface Match {
   id: string;
   matchNumber?: number;   // FIFA-style match number (1–104), by kickoff order
+  pageUrl?: string;       // provider match page path, for fetching the box score
   stage: Stage;
   group?: GroupId;       // only for group-stage matches
   status: MatchStatus;
@@ -74,6 +75,7 @@ export interface StandingRow {
   goalDiff: number;
   points: number;
   rank: number;       // 1..4 within the group
+  qualified?: boolean; // provider's official qualification flag (e.g. 3rd-place race)
 }
 
 // A knockout slot is filled either by a concrete team or by a reference
@@ -106,11 +108,18 @@ export type SlotSource =
   | { kind: "winner-match"; matchId: string }     // winner of R32-1
   | { kind: "loser-match"; matchId: string }      // for third-place playoff
   | { kind: "team"; team: Team }                  // fully resolved
+  | { kind: "label"; text: string }               // provider placeholder, e.g. "1E", "3ABCDF"
   | { kind: "tbd" };
 
 export interface TournamentData {
   teams: Team[];
   matches: Match[];
+  // Official, provider-supplied tables and bracket. Present when live data is
+  // connected; absent for seed data (the client computes those locally instead).
+  standings?: Record<GroupId, StandingRow[]>;
+  thirdPlace?: StandingRow[];   // the 12 third-placed teams, ranked, with qualified flag
+  bracket?: BracketSlot[];      // official knockout bracket, slots filled as results land
   updatedAt: string;
   source: "api" | "seed";
+  error?: string;
 }

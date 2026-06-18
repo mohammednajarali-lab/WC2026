@@ -8,7 +8,14 @@ export function Flag({ team }: { team: Team | null }) {
   return (
     <span className="flag">
       {isUrl
-        ? <img src={team.flag} alt="" loading="lazy" />
+        ? <img
+            src={team.flag}
+            alt=""
+            loading="lazy"
+            // Knockout placeholders (e.g. "1E") have no real crest yet — hide
+            // the broken image rather than showing a torn-image icon.
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+          />
         : (team.flag ?? "🏳️")}
     </span>
   );

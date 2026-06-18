@@ -29,14 +29,16 @@ export function useTournament() {
     return () => { alive = false; clearInterval(id); };
   }, []);
 
+  // Prefer the provider's official tables and bracket when they're present
+  // (live data). For seed data, compute everything locally.
   const standings = useMemo(
-    () => data ? computeStandings(data.teams, data.matches) : null,
+    () => data?.standings ?? (data ? computeStandings(data.teams, data.matches) : null),
     [data]);
   const thirds = useMemo(
-    () => standings ? bestThirdPlaced(standings) : [],
-    [standings]);
+    () => data?.thirdPlace ?? (standings ? bestThirdPlaced(standings) : []),
+    [data, standings]);
   const bracket = useMemo(
-    () => data ? buildBracket(data.teams, data.matches) : [],
+    () => data?.bracket ?? (data ? buildBracket(data.teams, data.matches) : []),
     [data]);
   const groupsDone = useMemo(
     () => data ? allGroupsComplete(data.matches) : false,
