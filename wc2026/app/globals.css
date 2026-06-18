@@ -184,7 +184,9 @@ tr.q3 td:first-child { color: var(--amber); font-weight: 800; }
 .tie .row.w .sc { color: var(--green); }
 .tie .row.l .nm { color: var(--faint); }
 .tie .row.tbd .nm { color: var(--faint); font-style: italic; font-weight: 500; }
-.tie .row .sc { font-weight: 800; }
+ .tie .row .sc { font-weight: 800; }
+ .tie .row.proj .nm { color: var(--muted); font-weight: 600; }
+ .tie .row.proj .seed { font-size: 9.5px; font-weight: 800; letter-spacing: .03em; color: var(--ink); background: var(--cyan); border-radius: 4px; padding: 1px 5px; margin-left: 4px; }
 .final-wrap { align-self: center; }
 .final .tie { border-color: var(--magenta); box-shadow: 0 0 24px rgba(255,45,120,.18); }
 .champ { text-align: center; margin-top: 14px; }

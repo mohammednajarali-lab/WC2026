@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo } from "react";
 import type { TournamentData } from "./types";
 import { computeStandings, bestThirdPlaced, allGroupsComplete } from "./standings";
 import { buildBracket } from "./bracket";
+import { projectBracket } from "./projectBracket";
 
 // Refresh cadence. We poll faster while matches are live so scores and the
 // clock stay current, and ease off when nothing is in play.
@@ -54,9 +55,12 @@ export function useTournament() {
   const thirds = useMemo(
     () => data?.thirdPlace ?? (standings ? bestThirdPlaced(standings) : []),
     [data, standings]);
-  const bracket = useMemo(
-    () => data?.bracket ?? (data ? buildBracket(data.teams, data.matches) : []),
-    [data]);
+  const bracket = useMemo(() => {
+    const base = data?.bracket ?? (data ? buildBracket(data.teams, data.matches) : []);
+    // Seed the Round of 32 from the current live standings so the bracket
+    // reflects who is advancing right now, not only after the groups finish.
+    return projectBracket(base, standings, thirds);
+  }, [data, standings, thirds]);
   const groupsDone = useMemo(
     () => data ? allGroupsComplete(data.matches) : false,
     [data]);

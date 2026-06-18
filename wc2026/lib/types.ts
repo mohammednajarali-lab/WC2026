@@ -108,6 +108,7 @@ export type SlotSource =
   | { kind: "winner-match"; matchId: string }     // winner of R32-1
   | { kind: "loser-match"; matchId: string }      // for third-place playoff
   | { kind: "team"; team: Team }                  // fully resolved
+  | { kind: "projected"; team: Team; from: string } // live projection from current standings (e.g. "1E")
   | { kind: "label"; text: string }               // provider placeholder, e.g. "1E", "3ABCDF"
   | { kind: "tbd" };
 

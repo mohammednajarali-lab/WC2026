@@ -10,7 +10,9 @@ const ROUND_ORDER: { stage: Stage; title: string }[] = [
 ];
 
 function sourceTeam(src: SlotSource): Team | null {
-  return src.kind === "team" ? src.team : null;
+  if (src.kind === "team") return src.team;
+  if (src.kind === "projected") return src.team;
+  return null;
 }
 
 function sourceLabel(src: SlotSource): string {
@@ -43,9 +45,13 @@ function Row({ src, result, which }: {
     );
   }
   if (team) {
+    const projected = src.kind === "projected";
     return (
-      <div className="row">
-        <span className="nm"><Flag team={team} />{team.name}</span>
+      <div className={`row${projected ? " proj" : ""}`}>
+        <span className="nm">
+          <Flag team={team} />{team.name}
+          {projected && <span className="seed" title={`Currently ${src.from}`}>{src.from}</span>}
+        </span>
         <span className="sc num">–</span>
       </div>
     );

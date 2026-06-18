@@ -13,15 +13,15 @@ export default function BracketPage() {
         <LiveStamp updatedAt={data?.updatedAt} live={data?.source === "api"} />
       </div>
       <p className="sub">
-        The road to MetLife Stadium on July 19. Slots fill automatically — group winners and
-        runners-up the moment a group finishes, the eight best third-placed teams once every
-        group is done, then each knockout winner as the final whistle blows.
+        The road to MetLife Stadium on July 19. The Round of 32 is seeded live from the current
+        group standings, so it always shows who would advance right now — then locks in as each
+        group finishes and updates with every knockout result.
       </p>
 
       <div className="predict-note">
         {groupsDone
           ? "Group stage complete — knockout matchups are set and advancing live."
-          : "Group stage in progress. Winner / runner-up slots resolve as groups finish; third-place slots lock once all 12 groups are done."}
+          : "Group stage in progress. Teams tagged with a seed badge (e.g. 1E, 2A, 3) are the current live projection from the standings and will shift as results change."}
       </div>
 
       {bracket.length
